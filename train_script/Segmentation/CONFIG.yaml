@@ -1,0 +1,151 @@
+source:
+  #  image_root: "~/resource/data/images"
+  #  label_root: "~/resource/data/labels"
+  image_root: "/YOUR_PATH/wsirois/roi-level-annotations/tissue-bcss/images"
+  label_root: "/YOUR_PATH/wsirois/roi-level-annotations/tissue-bcss/masks"
+  lib: "~/cache/source.lib"
+
+cropper:
+  # type: 'random'
+  type: 'active'
+  groups_lib: "~/cache/groups.yaml"
+  cropper_lib: "~/cache/cropper.yaml"
+  cropper_root: "~/cache/"
+  predict_lib: "~/cache/predict.yaml"
+  # target_mpp 是构建数据源时约定的图像分辨率
+  target_mpp: 0.5
+  patch_size: 512
+  step: 256
+
+dataset:
+  length: 36000
+  class_num: 8
+  use_migrate: False
+  use_confidence: False
+  in_memory: True
+  # 像素数占比
+  # bg:       0.232   4.3     无效分类，最低赋权
+  # tumor1:   0.283   3.5     主分类，低赋权
+  # stroma1:  0.286   3.5     主分类，低赋权
+  # tumor2:   0.029   34      关键分类，高赋权
+  # normal:   0.001   1000    占比过低，放弃治疗
+  # necrosis: 0.048   21      次要分类，中高赋权
+  # stroma2:  0.096   10      主分类，中等赋权
+  # rest:     0.026   38      次要分类，中高赋权
+  # 赋权设计：
+  # bg 1, tm1 3, st1 3, tm2 20, nm 10, nc 12, st2 6, rs 20
+  active_weight: [1, 3, 3, 20, 10, 12, 6, 20]
+  train:
+    use_active: True
+    use_box: True
+    rotate: 'random[-45, 45]'
+    scaling: 'random[1, 1.5]'   # 'random[start, end]' or 'list[0.5, 1, 2, 4]'
+  valid:
+    # 验证集必须使用 use_box
+    use_box: True
+    use_scale: True
+    rotate: 'list[0]'
+    scaling: 'list[1]'
+  test:
+    # 测试集总是不用 use_box
+    use_box: False
+    use_scale: True
+    rotate: 'list[0]'
+    scaling: 'list[1]'
+  predict:
+    use_scale: True
+    scaling: 'random[0.8, 1.2]'
+  # formatter settings
+  formatter:
+    # type: 'simple'
+    type: 'norm'
+    name: '--'  # "timm-resnest14d" # "Net21" # "timm-resnest50d"
+    weights: '--'
+  # transfer settings
+  transfer:
+    gamma: [ 95, 105 ]
+    hsv:
+      h: 40
+      s: 10
+      v: 10
+    bc:
+      b: 0.5
+      c: 0.5
+    level: 'strong' # weak
+    elastic: 'off' # on
+    cut: 'off'
+
+# model settings
+model:
+  # name: 'Net24'  # "timm-resnest14d" # "Net21" # "timm-resnest50d"
+  name: 'van'
+  # 注意： auxiliary 是辅助网络的意思，目前只启用了一个辅助网络，即 van 源码中使用的 mmcv.fcn, 所以 auxiliary 是一个 bool
+  # 虽然 smp 中也有 fcn，但我不确定二者是否一致，因此我直接将 mmcv.fcn 源码转写在 ./main/model/net/structure 下作为特别指定的辅助网络
+  auxiliary: True
+  weights: "imagenet"
+  active: "softmax2d"
+  optimizer: 'adam'
+  loss: 'lce_dice:1'
+  ce_limit: 15
+  label_smooth: 0.08
+  label_weights: []
+  scheduler: 'coswarm'
+  # 'coswarm' # 'coswarm' or 'step'
+  warmup:
+  # 'line'
+  lr:
+    encoder: 1e-5
+    decoder: 1e-4
+    head: 1e-3
+    wt_net: 1e-4
+    van: 1e-4
+
+build:
+  visual_root: "~/cache/visual"
+
+# train settings
+train:
+  #  device: 'cuda:2'
+  device: 0
+  batch_size: 14
+  epoch: 20  # 200
+  save_epoch: 1   # 每多少代保存
+  num_workers: 0
+  tqdm_verbose: True
+
+# visual settings
+visual:
+  dataset_root: "~/datasource/visual"
+  predict_root: "~/datasource/visual"
+  color:
+    box: [0, 255, 255]      # 青色 -> box框
+    fill: [
+      [ 100, 100, 100 ],    # 灰色 -> 背景
+      [ 255, 0  , 0   ],    # 亮红 -> Invasive Tumor -- 浸润性肿瘤
+      [ 180, 120, 0   ],    # 橙黄 -> Tumor-associated Stroma -- 肿瘤相关基质
+      [ 120, 0  , 0   ],    # 暗红 -> In-situ Tumor -- 原位肿瘤
+      [ 0  , 180, 0   ],    # 绿色 -> Healthy Glands -- 健康腺体（上皮细胞）
+      [ 0  , 0  , 0   ],    # 黑色 -> Necrosis not in-situ -- 非原位坏死
+      [ 255, 255, 0   ],    # 亮黄 -> Inflamed Stroma -- 炎症基质
+      [ 255, 255, 255 ],    # 白色 -> Rest -- 余项
+    ]
+    outline: [
+      [ 100, 100, 100 ],    # 无色 -> 背景
+      [ 255, 0  , 0   ],    # 亮红 -> Invasive Tumor -- 浸润性肿瘤
+      [ 180, 120, 0   ],    # 橙黄 -> Tumor-associated Stroma -- 肿瘤相关基质
+      [ 120, 0  , 0   ],    # 暗红 -> In-situ Tumor -- 原位肿瘤
+      [ 0  , 180, 0   ],    # 绿色 -> Healthy Glands -- 健康腺体（上皮细胞）
+      [ 0  , 0  , 0   ],    # 黑色 -> Necrosis not in-situ -- 非原位坏死
+      [ 255, 255, 0   ],    # 亮黄 -> Inflamed Stroma -- 炎症基质
+      [ 255, 255, 255 ],    # 白色 -> Rest -- 余项
+    ]
+  bord_width: 7
+
+# output settings
+output:
+  root: "~/output/"
+  target: "latest"
+  full: "full"
+  model: "model.pth"
+  log: "log.csv"
+  visual: True
