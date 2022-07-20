@@ -1,0 +1,1 @@
+docker run --rm --gpus all --memory=12g --memory-swap=12g --network=none --cap-drop=ALL --security-opt="no-new-privileges" --shm-size 128m --pids-limit=256 -v /YOUR_FILEPATH:/input  tigerexamplealgorithml
