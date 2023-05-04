@@ -19,3 +19,5 @@ This subdirectory provides scripts for building TIGER challenge  algorithm-docke
 ## train_script
 
 There are two subdirectories,**./train_script/Segmentation** to segment several tissue compartments and **./train_script/Detection** to detect lymphocytes and plasma cells.
+
+Model weights used in our submission are provided at https://drive.google.com/drive/folders/1aDyOLXyyfEW9Fz1OJCiiuLV2mG0CH0hZ?usp=sharing
